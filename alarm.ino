@@ -1,42 +1,26 @@
 bool hwEnable = false;
 bool swEnable = true;
 bool movement = false;
+bool checkMove = false;
 bool alarm = false;
+bool prevMove = false;
+bool visto = false;
 
 int pinHWdisable = A0;
 int pinPIR = A1;
 int ledGreen = 2;
 int ledBlue = 3;
 int ledRed = 4;
-
+int counter = 0;
 
 int highPIR = 300;
-unsigned long alarmDelay = 30000;
+int maxMove = 3;
+unsigned long alarmDelay = 30 * 1000;
 unsigned long toggleStart = 0;
+unsigned long moveTime = 0;
+
 int LL = 400;
 int UL = 800;
-
-// MUST returns true if disable jack is NOT inserted (true = alarm on)
-bool hwEnablecheck(){
-  if ((analogRead(pinHWdisable) > LL) and (analogRead(pinHWdisable) < UL)){ //aaa and bbb to be defined
-    return false;
-  }else{
-    return true;
-  }
-  Serial.print("HWdis\t");
-  Serial.println(analogRead(pinHWdisable));
-}
-
-bool movecheck(){
-  if (analogRead(pinPIR) > highPIR){
-    return true;
-  }else{
-    return false;
-  }
-  Serial.print("PIR\t");
-  Serial.println(analogRead(pinPIR));
-}
-
 
 void setup(){
   Serial.begin(9600);
@@ -47,53 +31,69 @@ void setup(){
 }
 
 void loop(){
-//  hwEnable = hwEnablecheck();
 
+// check if disable jack is inserted
   if ((analogRead(pinHWdisable) > LL) and (analogRead(pinHWdisable) < UL)){ //aaa and bbb to be defined
     hwEnable = false;
+    alarm = false;
+    movement = false;
   }else{
     hwEnable = true;
   }
 
 //  swEnable = SIMCHECK??
+
+  prevMove = checkMove;
   
-  bool prevMove = movement;
-//  movement = movecheck();
-  if (analogRead(pinPIR) > highPIR){
-    movement = true;
+/*  if (analogRead(pinPIR) > highPIR){
+    checkMove = true;
   }else{
-    movement = false;
+    checkMove = false;
+  }
+*/
+  checkMove = (analogRead(pinPIR) > highPIR)?true:false;
+
+  if (checkMove != prevMove) {
+     if (checkMove) {
+       counter ++;
+     }
+  }
+  moveTime = millis();
+  if (counter < 1){
+    toggleStart = moveTime;
   }
   
-  Serial.print("HWdis\t");
-  Serial.print(analogRead(pinHWdisable));
-  Serial.print("\t");
-  Serial.print("PIR\t");
-  Serial.println(analogRead(pinPIR));
-
-
-
-  if (movecheck and !prevMove){
-    toggleStart = millis();
-  }
-  
-  if (movecheck and prevMove){
-    unsigned long moveTime = millis();
-    if ((moveTime-toggleStart) >= alarmDelay){
+  if (moveTime - toggleStart >= alarmDelay) {
+    if ((checkMove) or (counter > maxMove)) {
       movement = true;
     }
+    counter = 0;
   }
+  Serial.print(analogRead(pinPIR));
+  Serial.print("\t");
+  Serial.print(counter); 
+  Serial.print("\t");
+  Serial.print(moveTime);
+  Serial.print("\t");
+  Serial.print(toggleStart);
+  Serial.print("\t");
+  Serial.println(moveTime - toggleStart);
   
   alarm = hwEnable and swEnable and movement;
 
   if (hwEnable) {
-    digitalWrite(ledGreen,HIGH);
-  } else {
     digitalWrite(ledGreen,LOW);
+    digitalWrite(ledRed,LOW);
+    digitalWrite(ledBlue,LOW);
+  } else {
+    digitalWrite(ledGreen,HIGH);
   }
   
   if (movement) {
     digitalWrite(ledBlue,HIGH);
+    digitalWrite(ledRed,LOW);
+    digitalWrite(ledGreen,LOW);
+
   } else {
     digitalWrite(ledBlue,LOW);
   }
@@ -101,8 +101,8 @@ void loop(){
   
   if (alarm) {
     digitalWrite(ledRed,HIGH);
-  } else{
-    digitalWrite(ledRed,LOW);
+    digitalWrite(ledBlue,LOW);
+    digitalWrite(ledGreen,LOW);
   }
   
 }
